@@ -14,6 +14,7 @@ import 'package:kazumi/plugins/plugins_controller.dart';
 /// 直接从已启用的片源规则搜索，不经过番剧资料库。
 ///
 /// 搜索结果只有名称与来源，点击后直接解析播放线路并进入播放页。
+/// 可选择搜索全部片源，或仅搜索指定的单个片源。
 class DirectSourceSearchPage extends StatefulWidget {
   const DirectSourceSearchPage({super.key});
 
@@ -25,10 +26,15 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
   final TextEditingController _input = TextEditingController();
   final FocusNode _focus = FocusNode();
 
+  /// null 表示搜索全部片源，否则只搜索指定名称的片源。
+  String? _selectedPluginName;
   bool _searching = false;
   String _keyword = '';
   List<_SourceGroup> _groups = <_SourceGroup>[];
   String? _playingSrc;
+
+  List<Plugin> get _plugins =>
+      List<Plugin>.of(inject<PluginsController>().pluginList);
 
   @override
   void dispose() {
@@ -42,13 +48,15 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
     if (keyword.isEmpty || _searching) return;
     _focus.unfocus();
 
-    final pluginsController = inject<PluginsController>();
-    final plugins = List<Plugin>.of(pluginsController.pluginList);
+    final plugins = _plugins;
+    final targets = _selectedPluginName == null
+        ? plugins
+        : plugins.where((p) => p.name == _selectedPluginName).toList();
 
     setState(() {
       _keyword = keyword;
       _searching = true;
-      _groups = [for (final plugin in plugins) _SourceGroup(plugin: plugin)];
+      _groups = [for (final plugin in targets) _SourceGroup(plugin: plugin)];
     });
 
     await Future.wait([
@@ -130,6 +138,60 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
     }
   }
 
+  Future<void> _pickPlugin() async {
+    if (_searching) return;
+    _focus.unfocus();
+    final plugins = _plugins;
+    if (plugins.isEmpty) {
+      KazumiDialog.showToast(message: '还没有可用的片源规则');
+      return;
+    }
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.all_inclusive_rounded),
+              title: const Text('全部片源'),
+              subtitle: const Text('并行搜索所有已启用片源'),
+              selected: _selectedPluginName == null,
+              selectedTileColor:
+                  Theme.of(context).colorScheme.secondaryContainer,
+              onTap: () => Navigator.of(context).pop(null),
+            ),
+            for (final plugin in plugins)
+              ListTile(
+                leading: const Icon(Icons.source_rounded),
+                title: Text(plugin.name),
+                subtitle: Text(plugin.baseUrl),
+                selected: _selectedPluginName == plugin.name,
+                selectedTileColor:
+                    Theme.of(context).colorScheme.secondaryContainer,
+                onTap: () => Navigator.of(context).pop(plugin.name),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == _selectedPluginName) return;
+    setState(() {
+      _selectedPluginName = result;
+      // 切换片源后清空旧结果，避免不同片源的结果混杂。
+      _groups = const <_SourceGroup>[];
+      _keyword = '';
+    });
+  }
+
+  String get _searchHint {
+    if (_selectedPluginName == null) return '输入关键词，直接搜索所有已启用片源';
+    return '输入关键词，在 $_selectedPluginName 中搜索';
+  }
+
   Widget _searchField() {
     final colors = Theme.of(context).colorScheme;
     return TextField(
@@ -138,7 +200,7 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
       textInputAction: TextInputAction.search,
       onSubmitted: (_) => _search(),
       decoration: InputDecoration(
-        hintText: '输入关键词，直接搜索所有已启用片源',
+        hintText: _searchHint,
         filled: true,
         fillColor: colors.surfaceContainerHigh,
         border: OutlineInputBorder(
@@ -165,7 +227,9 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
             _searchField(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            _pluginPickerTile(),
+            const SizedBox(height: 4),
             if (_keyword.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 48),
@@ -191,6 +255,38 @@ class _DirectSourceSearchPageState extends State<DirectSourceSearchPage> {
               for (final group in _groups) ..._groupWidgets(group),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _pluginPickerTile() {
+    final theme = Theme.of(context);
+    final label = _selectedPluginName ?? '全部片源';
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerHigh,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        dense: true,
+        leading: Icon(
+          _selectedPluginName == null
+              ? Icons.all_inclusive_rounded
+              : Icons.source_rounded,
+          color: theme.colorScheme.primary,
+        ),
+        title: Text(
+          '片源：$label',
+          style: theme.textTheme.titleSmall,
+        ),
+        subtitle: Text(
+          _selectedPluginName == null ? '点击可指定单个片源' : '点击可切换或搜索全部片源',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: _pickPlugin,
       ),
     );
   }
