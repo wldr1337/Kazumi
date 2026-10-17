@@ -1,4 +1,5 @@
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:kazumi/pages/search/direct_source_search_page.dart';
 import 'package:kazumi/pages/search/image_search_page.dart';
 import 'package:kazumi/pages/search/search_controller.dart';
 import 'package:kazumi/pages/search/search_page.dart';
@@ -24,6 +25,10 @@ final searchModule = createModule(
         child: (context, state) => ImageSearchPage(
           controller: context.read<SearchPageController>(),
         ),
+      )
+      ..route(
+        '/direct',
+        child: (context, state) => const DirectSourceSearchPage(),
       )
       ..route(
         '/:tag',
