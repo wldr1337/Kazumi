@@ -122,6 +122,13 @@ class _SearchPageState extends State<SearchPage> {
     await _submit(result);
   }
 
+  Future<void> _directSourceSearch() async {
+    _inputFocus.unfocus();
+    final result = await context.pushNamed('/search/direct');
+    if (!mounted || result is! String || result.isEmpty) return;
+    await _submit(result);
+  }
+
   void _clearSearch() {
     _inputFocus.unfocus();
     _writeInput('');
@@ -162,6 +169,11 @@ class _SearchPageState extends State<SearchPage> {
             onPressed: _imageSearch,
             icon: const Icon(Icons.image_search_rounded),
           ),
+          IconButton(
+            tooltip: '从片源直接搜索',
+            onPressed: _directSourceSearch,
+            icon: const Icon(Icons.public_rounded),
+          ),
         ],
         onSubmitted: _submit,
       ),
@@ -189,6 +201,19 @@ class _SearchPageState extends State<SearchPage> {
             subtitle: const Text('题材、放送时间与评分'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _showFilters,
+          )),
+      Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            leading: const Icon(Icons.public_rounded),
+            title: const Text('从片源直接搜索'),
+            subtitle: const Text('跳过番剧资料库，直接在已启用片源中查找'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _directSourceSearch,
           )),
       const SizedBox(height: 28),
       Observer(builder: (_) {
